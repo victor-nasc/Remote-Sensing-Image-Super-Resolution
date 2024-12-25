@@ -1,11 +1,10 @@
 import torch
-import torch.nn as nn
 
 from pytorch_msssim import ssim
 from torcheval.metrics import PeakSignalNoiseRatio 
 
 
-def wass_loss(HR, fake):
+def wass_loss(HR: torch.Tensor, fake: torch.Tensor) -> torch.Tensor:
     return HR - fake
 
 def normalize_image(img: torch.Tensor) -> torch.Tensor:
