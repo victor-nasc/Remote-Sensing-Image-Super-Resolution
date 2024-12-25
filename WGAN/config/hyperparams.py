@@ -1,24 +1,20 @@
 import torch
 
-
-device = torch.device("cuda:0")
-
-# Hyper params
+# model parameters
 gp_lambda = 10
 critic_iterations = 5
-batch_size = 32
 gamma = 0.01
 content_lambda = 5
-ncomp = 75
 lr = 0.00025
 
-# Run configuration parameters
+# train parameters
 epochs = 1000
-print_every = 250
+device = torch.device("cuda:0")
+batch_size = 16
 save_every = 10
-use_cuda = True
+log_dir = 'logs1'
 
-# Frequency separation parameters
+# frequency separation parameters
 # freq_sep = False
 # filter_size = 5
 # padding = filter_size // 2
