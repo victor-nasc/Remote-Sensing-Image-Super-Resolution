@@ -58,28 +58,35 @@ class WassersteinGAN:
             print(f'{key}_{subset_str}: {metric}')
         print()
 
+    def _tensorboard_loss(self, c_loss, g_loss, epoch):
+        self.writer.add_scalar("C_loss", c_loss, epoch)
+        self.writer.add_scalar("G_loss", g_loss, epoch)
+        print(f'C_loss: {c_loss}')
+        print(f'G_loss: {g_loss}')
+        print()
+
+
     def _critic_train_iteration(self, coarse, fine):
 
+        self.C_optimizer.zero_grad()
+        
         fake = self.G(coarse)
 
         c_real = self.C(fine)
         c_fake = self.C(fake)
 
+        # gradient penalty
         gradient_penalty = hp.gp_lambda * self._gp(fine, fake, self.C)
 
-        # Zero the gradients
-        self.C_optimizer.zero_grad()
-
+        # critic loss
         c_real_mean = torch.mean(c_real)
         c_fake_mean = torch.mean(c_fake)
+        c_loss = c_fake_mean - c_real_mean + gradient_penalty
 
-        critic_loss = c_fake_mean - c_real_mean + gradient_penalty
-        w_estimate = c_real_mean - c_fake_mean
-
-        critic_loss.backward(retain_graph = True)
-
-        # Update the critic
+        c_loss.backward(retain_graph = True)
         self.C_optimizer.step()
+
+        return c_loss
 
     def _generator_train_iteration(self, coarse, fine):
 
@@ -88,14 +95,19 @@ class WassersteinGAN:
         fake = self.G(coarse)
         c_fake = self.C(fake)
 
-        # 
-        g_loss = -torch.mean(c_fake)*hp.gamma
+        # adversarial loss
+        g_loss = -torch.mean(c_fake) * hp.adv_lambda
 
         # content loss
         g_loss += hp.content_lambda * nn.L1Loss()(fake, fine)
 
+        # perceptual loss
+        # TODO IMPLEMENTAR!!!!
+
         g_loss.backward()
         self.G_optimizer.step()
+
+        return g_loss
 
     def _gp(self, real, fake, critic):
 
@@ -139,10 +151,10 @@ class WassersteinGAN:
             coarse = data[0].to(hp.device)
             fine = data[1].to(hp.device)
 
-            self._critic_train_iteration(coarse, fine)
+            c_loss = self._critic_train_iteration(coarse, fine)
 
             if self.num_steps%hp.critic_iterations == 0:
-                self._generator_train_iteration(coarse, fine)
+                g_loss = self._generator_train_iteration(coarse, fine)
                 
             # Track train set metrics
             train_metrics = self._calculate_metrics(
@@ -154,11 +166,15 @@ class WassersteinGAN:
             )
 
             self.num_steps += 1
-            break
+
+            print(f'step: {self.num_steps}/{len(train_dl)}', end='\r')
         
         # mean of all batches and log to file
         with torch.no_grad():
-            # train_metrics = self._post_epoch_metric_mean(train_metrics, "train")
+            c_loss = c_loss / len(train_dl)
+            g_loss = g_loss / (len(train_dl) // hp.critic_iterations)
+
+            self._tensorboard_loss(c_loss, g_loss, epoch)
             self._tensorboard_metrics_mean(train_metrics, "train", epoch)
 
             val_metrics = self._initialize_metric_dicts()
@@ -167,7 +183,6 @@ class WassersteinGAN:
                 coarse = data[0].to(hp.device)
                 fine = data[1].to(hp.device)
 
-                # Track train set metrics
                 val_metrics = self._calculate_metrics(
                     self.G,
                     self.C,
@@ -175,10 +190,7 @@ class WassersteinGAN:
                     fine,
                     val_metrics,
                 )
-                break
 
-            # Take mean of all batches and log to file
-            # val_metrics = self._post_epoch_metric_mean(val_metrics, "val")
             self._tensorboard_metrics_mean(val_metrics, "val", epoch)
 
         if epoch % hp.save_every == 0:
