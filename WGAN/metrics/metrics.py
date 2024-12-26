@@ -1,7 +1,5 @@
 import torch
-
 from pytorch_msssim import ssim
-from torcheval.metrics import PeakSignalNoiseRatio 
 
 
 def wass_loss(HR: torch.Tensor, fake: torch.Tensor) -> torch.Tensor:
@@ -14,18 +12,20 @@ def normalize_image(img: torch.Tensor) -> torch.Tensor:
     assert float(img.max()) <= 1.0 and float(img.min()) >= 0.0
     return img
 
-def SSIM(HR: torch.Tensor, fake: torch.Tensor) -> float:
+def SSIM(HR: torch.Tensor, fake: torch.Tensor) -> torch.Tensor:
     HR = normalize_image(HR)
     fake = normalize_image(fake)
 
     return ssim(HR, fake, data_range=1.0)
 
-def PSNR(HR: torch.Tensor, fake: torch.Tensor) -> float:
+def PSNR(HR: torch.Tensor, fake: torch.Tensor, data_range: float = 1.0) -> torch.Tensor:
     HR = normalize_image(HR)
     fake = normalize_image(fake)
 
-    psnr = PeakSignalNoiseRatio(data_range=1.0)
-    psnr.update(HR, fake)
+    mse = torch.mean((HR - fake) ** 2)
+    if mse == 0:
+        return float('inf')
 
-    return psnr.compute()
+    psnr = 20 * torch.log10(data_range / torch.sqrt(mse))
 
+    return psnr
