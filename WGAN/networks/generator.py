@@ -81,6 +81,8 @@ class Generator(nn.Module):
         
         self.conv2 = nn.Conv2d(filters, filters, kernel_size=3, stride=1, padding=1)
         
+        self.attention = SelfAttention(filters)
+
         # upsampling
         upsample_layers = []
         for _ in range(num_upsample):
@@ -103,6 +105,7 @@ class Generator(nn.Module):
         out = self.res_blocks(out1)
         out2 = self.conv2(out)
         out = torch.add(out1, out2)
+        out = self.attention(out)
         out = self.upsampling(out)
         out = self.conv3(out)
         
